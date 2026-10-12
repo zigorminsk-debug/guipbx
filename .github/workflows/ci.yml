@@ -23,13 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Клонирование
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Полная история нужна, чтобы сборка могла прочитать коммит и ветку.
           fetch-depth: 0
 
       - name: Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -62,7 +62,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Артефакт dist/
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flowpbx-dist
           path: dist/
@@ -71,7 +71,7 @@ jobs:
 
       - name: Артефакт для GitHub Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist/
 
@@ -105,4 +105,4 @@ jobs:
       - name: Деплой
         if: steps.pages.outputs.enabled == 'true'
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
