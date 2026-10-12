@@ -1,0 +1,18 @@
+# Зависимости
+node_modules/
+
+# Результат сборки (создаётся `npm run build`, публикуется артефактом CI)
+dist/
+
+# Локальные артефакты тестов и отладки
+*.log
+npm-debug.log*
+test-results/
+coverage/
+
+# ОС и редакторы
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
