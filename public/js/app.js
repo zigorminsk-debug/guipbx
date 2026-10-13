@@ -624,14 +624,20 @@
         <div class="pf"><label>Порт AMI</label><input id="stPort" type="number" value="${c.port}"></div>
         <div class="pf"><label>Логин администратора (AMI)</label><input id="stUser" type="text" value="${escapeHtml(c.user)}"></div>
         <div class="pf"><label>Пароль</label><input id="stSecret" type="password" value="${escapeHtml(c.secret)}"></div>
-        <div class="pf-help">Учётка задаётся на станции в /etc/asterisk/manager.conf:<br>
+        <div class="pf-help">Только IP или имя хоста станции (AMI — TCP-сервис на порту 5038, <b>не путать с адресом веб-панели</b>).<br>
+        Логин/пароль — из секции AMI в /etc/asterisk/manager.conf:<br>
         <code style="color:#9fd4ff">[admin] secret=… permit=0.0.0.0/0.0.0.0 read=command write=command</code><br>
+        Для FreePBX: модуль «Asterisk Manager Users» (не логин веб-админки).<br>
         Логин/пароль хранятся только в этом браузере.</div>
         <div id="stResult" style="margin-top:10px"></div>`;
       m.foot.innerHTML = '';
       const connect = mkBtn('🔌 Подключиться', 'primary', async () => {
+        const hostRaw = body.querySelector('#stHost').value;
+        // терпимость: убираем случайно вставленные http://, путь и порт из поля IP
+        const hostClean = hostRaw.trim().replace(/^\w+:\/\//, '').split(/[/?#]/)[0].replace(/:\d*$/, '');
+        if (hostClean !== hostRaw.trim() && hostClean) body.querySelector('#stHost').value = hostClean;
         const cfg = {
-          host: body.querySelector('#stHost').value.trim(),
+          host: hostClean || hostRaw.trim(),
           port: Number(body.querySelector('#stPort').value) || 5038,
           user: body.querySelector('#stUser').value.trim(),
           secret: body.querySelector('#stSecret').value,

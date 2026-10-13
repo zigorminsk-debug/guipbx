@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,7 +21,7 @@ import (
 //go:embed public
 var publicFS embed.FS
 
-const version = "1.1.1"
+const version = "1.1.2"
 
 func main() {
 	ensureSeedData()
@@ -201,7 +202,7 @@ func main() {
 			writeErr(w, 400, "некорректный JSON")
 			return
 		}
-		b.Host = strings.TrimSpace(b.Host)
+		b.Host = normalizeHost(b.Host)
 		if b.Host == "" {
 			writeErr(w, 400, "Укажите IP адрес станции")
 			return
@@ -449,6 +450,25 @@ func stationDialplanShow() ([]DumpContext, error) {
 		return nil, fmt.Errorf("диалплан пуст или не разобран (%d байт ответа)", len(text))
 	}
 	return ctxs, nil
+}
+
+// normalizeHost терпимо обрабатывает поле «IP станции»: отрезает
+// случайно вставленный URL (http://…/admin/config.php#), путь, порт.
+// Порт задаётся отдельным полем формы.
+func normalizeHost(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.Index(s, "://"); i >= 0 {
+		s = s[i+3:]
+	}
+	if i := strings.IndexAny(s, "/?#"); i >= 0 {
+		s = s[:i]
+	}
+	if h, _, err := net.SplitHostPort(s); err == nil {
+		s = h
+	} else if strings.Count(s, ":") == 1 {
+		s = strings.SplitN(s, ":", 2)[0]
+	}
+	return strings.TrimSpace(s)
 }
 
 var slugRe = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)

@@ -48,7 +48,8 @@ node scripts/ui-smoke.js http://localhost:3000   # UI-смоук против з
 
 ## Подключение к станции Asterisk
 
-1. Нажмите **🖧 Станция**, введите **IP, логин и пароль администратора** (AMI из `/etc/asterisk/manager.conf`):
+1. Нажмите **🖧 Станция**, введите **IP (только хост, без `http://` и путей — AMI это отдельный TCP-сервис), логин и пароль** из секции AMI в `/etc/asterisk/manager.conf`
+   (для FreePBX — пользователь из модуля «Asterisk Manager Users», не логин веб-админки):
    ```
    [admin]
    secret = TopSecret
