@@ -41,6 +41,16 @@ assert.ok(
   'неверный ввод IVR должен возвращать в меню'
 );
 
+// после цифровых строк IVR цепочка возвращается к extension s якорем:
+assert.ok(
+  r.extensions.includes('exten => s,n(m_n_dial1),NoOp(>>> Вызов абонента)'),
+  'цепочка ветвей IVR должна привязываться к extension s (exten => s,n(...))'
+);
+assert.ok(
+  !r.extensions.includes('exten => i,1,Playback(invalid)\nsame => n(m_n_dial1)'),
+  'same => n не должен продолжать чужой extension i'
+);
+
 const p = compileProject([scheme], registry);
 assert.ok(p.pjsip.includes('type=endpoint'), 'pjsip без endpoint-ов');
 assert.ok(p.pjsip.includes('password=' + registry.devices[0].secret), 'секрет абонента не попал в pjsip');

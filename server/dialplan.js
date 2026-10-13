@@ -86,7 +86,13 @@ function compileScheme(scheme, registry) {
   }
 
   function push(C, action, label) {
-    const tag = C.first ? `exten => ${C.exten},1` : 'same => n';
+    // после цифровых строк IVR цепочка должна заново «привязаться» к основному
+    // extension строкой «exten => <exten>,n,…» — иначе same продолжил бы чужой
+    // extension, и метки ветвей стали бы недостижимы.
+    let tag;
+    if (C.first) tag = `exten => ${C.exten},1`;
+    else if (C.needAnchor) { tag = `exten => ${C.exten},n`; C.needAnchor = false; }
+    else tag = 'same => n';
     C.lines.push(label ? `${tag}(${label}),${action}` : `${tag},${action}`);
     C.first = false;
   }
@@ -196,6 +202,8 @@ function compileScheme(scheme, registry) {
           const tI = dd.useI ? outTarget(cur.id, 'ki') : null;
           if (tI) C.lines.push(`exten => i,1,Goto(${C.ctx},${C.exten},${labelOf(tI)})`);
           else C.lines.push(`exten => i,1,Playback(invalid)`, `same => n,Goto(${C.ctx},${C.exten},${labelOf(cur)})`);
+          // возврат к основному extension: следующая строка цепочки — «exten => <exten>,n»
+          C.needAnchor = true;
           // рекурсивно эмитим ветки клавиш
           keys.forEach(k => { const t = outTarget(cur.id, 'k' + k); if (t && !C.emitted.has(t.id)) emitNode(C, t); });
           if (tT && !C.emitted.has(tT.id)) emitNode(C, tT);

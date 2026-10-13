@@ -136,7 +136,12 @@ type ctxBuilder struct {
 	lines  []string
 	header []string
 	first  bool
-	emitted map[string]bool
+	// needAnchor — следующая строка цепочки должна быть «exten => <exten>,n,…»
+	// (якорь возврата к основному extension после цифровых строк IVR,
+	// иначе «same => n» продолжил бы чужой extension — метки стали бы
+	// недостижимы для станции).
+	needAnchor bool
+	emitted    map[string]bool
 }
 
 func compileScheme(sc *Scheme, reg *Registry) schemeResult {
@@ -260,9 +265,13 @@ func (b *ctxBuilder) emitContext(entry *Node, index int) string {
 
 func (b *ctxBuilder) push(action, label string) {
 	var tag string
-	if b.first {
+	switch {
+	case b.first:
 		tag = "exten => " + b.exten + ",1"
-	} else {
+	case b.needAnchor:
+		tag = "exten => " + b.exten + ",n"
+		b.needAnchor = false
+	default:
 		tag = "same => n"
 	}
 	if label != "" {
@@ -460,6 +469,9 @@ func (b *ctxBuilder) emitNode(start *Node) {
 					"exten => i,1,Playback(invalid)",
 					fmt.Sprintf("same => n,Goto(%s,%s,%s)", b.ctx, b.exten, labelOf(cur)))
 			}
+			// после цифровых extension-строк возвращаемся к основному extension —
+			// следующая строка цепочки должна начинаться с «exten => <exten>,n»
+			b.needAnchor = true
 			for _, k := range keys {
 				if t := b.outTarget(cur.ID, "k"+k); t != nil && !b.emitted[t.ID] {
 					b.emitNode(t)

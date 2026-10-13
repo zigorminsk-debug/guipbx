@@ -25,7 +25,7 @@ type cliContext struct {
 
 var (
 	reCtx   = regexp.MustCompile(`^\[(.+)\]$`)
-	reExten = regexp.MustCompile(`^exten\s+=>\s+([^,]+),(\d+(\(([^)]*)\))?),?(.*)$`)
+	reExten = regexp.MustCompile(`^exten\s+=>\s+([^,]+),(?:\d+|n)(?:\(([^)]*)\))?,?(.*)$`)
 	reSame  = regexp.MustCompile(`^same\s+=>\s+n(\(([^)]*)\))?,(.*)$`)
 )
 
@@ -73,7 +73,9 @@ func contextsToCLI(text string) (commands []string, contexts []string, err error
 			continue
 		}
 		if m := reExten.FindStringSubmatch(trim); m != nil {
-			cur.steps = append(cur.steps, rawStep{exten: strings.TrimSpace(m[1]), label: m[4], app: strings.TrimSpace(m[5]), first: true})
+			// приоритет в файле не важен (1 для старта, n для якоря) —
+			// числовые приоритеты присваиваем сами по порядку следования
+			cur.steps = append(cur.steps, rawStep{exten: strings.TrimSpace(m[1]), label: m[2], app: strings.TrimSpace(m[3]), first: true})
 			continue
 		}
 		if m := reSame.FindStringSubmatch(trim); m != nil {

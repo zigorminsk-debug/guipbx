@@ -35,6 +35,13 @@ func TestDemoCompile(t *testing.T) {
 			t.Errorf("ожидалось в диалплане: %q\n---\n%s", s, ext)
 		}
 	}
+	// после цифровых строк IVR цепочка возвращается к extension s якорем
+	if !strings.Contains(ext, "exten => s,n(m_n_dial1),NoOp(>>> Вызов абонента)") {
+		t.Errorf("цепочка ветвей IVR не привязана к extension s:\n%s", ext)
+	}
+	if strings.Contains(ext, "exten => i,1,Playback(invalid)\nsame => n(m_n_dial1)") {
+		t.Errorf("same продолжает чужой extension — метка недостижима:\n%s", ext)
+	}
 	// неверный ввод IVR возвращает в меню
 	if !strings.Contains(ext, "Goto(gui-demo1-in-1,s,m_n_iv)") {
 		t.Error("неверный ввод IVR должен возвращать в меню")
