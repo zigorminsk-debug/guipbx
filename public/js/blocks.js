@@ -118,6 +118,17 @@
       fields: [{ key: 'text', label: 'Текст', type: 'text', default: 'marker' }],
       summary: d => ['📋 ' + String(d.text || '').slice(0, 22)],
     },
+    custom: {
+      title: 'Своя команда', icon: '🧩', cat: 'actions', color: '#e879f9',
+      desc: 'Произвольное приложение Asterisk (AGI, Read, DISA…)',
+      inputs: 1, outputs: [{ id: 'out', label: 'далее' }],
+      fields: [
+        { key: 'app', label: 'Приложение', type: 'select', editable: true, default: 'AGI',
+          options: ['AGI', 'EAGI', 'DeadAGI', 'Read', 'Gosub', 'Macro', 'DISA', 'Authenticate', 'SayDigits', 'SayNumber', 'SayUnixTime', 'Directory', 'Stasis', 'MP3Player', 'DumpChan', 'Playback', 'Background', 'ReadExten'] },
+        { key: 'args', label: 'Аргументы', type: 'textarea', default: '', help: 'Как в диалплане: для AGI — agi://host/script, для Read — VAR,prompt,digits' },
+      ],
+      summary: d => [(d.app || '?') + '(' + String(d.args || '').slice(0, 20) + ')'],
+    },
 
     /* ══ ЛОГИКА ══ */
     time: {

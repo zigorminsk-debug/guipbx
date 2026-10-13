@@ -197,9 +197,11 @@
     if (node.type === 'inbound' || node.type === 'outbound') {
       const note = document.createElement('div');
       note.className = 'props-scheme-note';
+      const ctxName = state.scheme.stationContext || ('gui-' + state.scheme.id + (node.type === 'inbound' ? '-in-1' : '-out-1'));
       note.innerHTML = node.type === 'inbound'
-        ? 'Это точка входа. Маршрутизация на схему задаётся у транка: <code>context=gui-' + state.scheme.id + '-in-1</code>'
-        : 'Исходящий маршрут. Контекст <code>gui-' + state.scheme.id + '-out-1</code> автоматически подключается к <code>gui-internal</code> при компиляции.';
+        ? 'Это точка входа. Маршрутизация на схему задаётся у транка: <code>context=' + ctxName + '</code>'
+          + (state.scheme.stationContext ? '<br>Схема импортирована со станции — выгрузка перезапишет контекст <b>' + ctxName + '</b>.' : '')
+        : 'Исходящий маршрут. Контекст <code>' + ctxName + '</code> автоматически подключается к <code>gui-internal</code> при компиляции.';
       bodyEl.appendChild(note);
     }
 
@@ -443,10 +445,10 @@
         let html = `<div class="ok-note">✔ Записано ${r.bytes} байт в ${escapeHtml(r.path)}</div>`;
         if (withReload) {
           try {
-            const rr = await amiReload();
-            html += `<div class="ok-note" style="margin-top:8px">✔ Asterisk (${escapeHtml(rr.banner || 'OK')}): dialplan перезагружен — <b>карта в работе</b></div>`;
+            await api.post('/api/station/command', { command: 'dialplan reload' });
+            html += `<div class="ok-note" style="margin-top:8px">✔ Станция: dialplan перезагружен — <b>карта в работе</b></div>`;
           } catch (e2) {
-            html += `<ul class="warn-list" style="margin-top:8px"><li>⚠ Файл записан, но перезагрузка не удалась: ${escapeHtml(e2.message)}. Настройте AMI в «🔌 Asterisk» или перезагрузите вручную.</li></ul>`;
+            html += `<ul class="warn-list" style="margin-top:8px"><li>⚠ Файл записан, но перезагрузка не удалась: ${escapeHtml(e2.message)}. Подключитесь к станции (🖧 Станция) или перезагрузите вручную.</li></ul>`;
           }
         }
         if (r.warnings && r.warnings.length) html += '<ul class="warn-list" style="margin-top:8px">' + r.warnings.slice(0, 20).map(w => `<li>⚠ ${escapeHtml(w)}</li>`).join('') + '</ul>';
@@ -460,12 +462,42 @@
       title: 'Вывод карты в работу', wide: false, body,
       foot: [
         mkBtn('📄 Только записать файл', '', () => run(false)),
-        mkBtn('🚀 Записать + dialplan reload', 'primary', () => run(true)),
+        mkBtn('🚀 Записать + reload', '', () => run(true)),
+        mkBtn('💾 На станцию + reload', 'primary', () => { m.close(); pushSchemeToStation(); }),
         mkBtn('Закрыть', '', () => m.close()),
       ],
     });
   }
   document.getElementById('btnDeploy').addEventListener('click', () => { saveScheme().then(openDeploy); });
+
+  /* ── выгрузка текущей карты на станцию (дозапись диалплана по AMI) ── */
+  async function pushSchemeToStation() {
+    const s = await refreshStationStatus();
+    if (!s.connected) {
+      toast('Сначала подключитесь к станции (🖧 Станция)', 'err');
+      openStation();
+      return;
+    }
+    await saveScheme();
+    try {
+      let r = await api.post('/api/station/push', { schemeId: state.scheme.id });
+      if (r.needForce) {
+        if (!confirm(`ВНИМАНИЕ: выгрузка перезапишет контексты станции:\n${(r.contexts || []).join(', ')}\n\nПродолжить?`)) return;
+        r = await api.post('/api/station/push', { schemeId: state.scheme.id, force: true });
+      }
+      const body = document.createElement('div');
+      body.innerHTML = `
+        <div class="ok-note">✔ Карта «${escapeHtml(state.scheme.name)}» выгружена на станцию «${escapeHtml(s.host)}»:
+        ${r.commands} команд, <b>dialplan reload</b> выполнен.<br>
+        Контексты: ${(r.contexts || []).map(escapeHtml).join(', ')}</div>
+        <pre style="margin-top:10px;max-height:220px">${escapeHtml((r.responses || []).join('\n'))}</pre>
+        ${(r.warnings && r.warnings.length) ? '<ul class="warn-list" style="margin-top:8px">' + r.warnings.map(w => `<li>⚠ ${escapeHtml(w)}</li>`).join('') + '</ul>' : ''}`;
+      const m = openModal({ title: 'Сохранено на станции', wide: true, body, foot: [mkBtn('Отлично', 'primary', () => m.close())] });
+      toast('Схема сохранена на станции ✔', 'ok');
+    } catch (e) {
+      toast('Выгрузка: ' + e.message, 'err');
+    }
+  }
 
   /* ═════════════ Реестр устройств и транков ═════════════ */
   function genSecret() { return Array.from(crypto.getRandomValues(new Uint8Array(9))).map(b => b.toString(16).padStart(2, '0')).join(''); }
@@ -536,59 +568,178 @@
   }
   document.getElementById('btnRegistry').addEventListener('click', openRegistry);
 
-  /* ═════════════ AMI ═════════════ */
-  const AMI_KEY = 'guipbx.ami';
-  const amiCfg = () => { try { return JSON.parse(localStorage.getItem(AMI_KEY)) || {}; } catch (_) { return {}; } };
-  const setAmiCfg = c => localStorage.setItem(AMI_KEY, JSON.stringify(c));
-
-  async function amiReload() {
-    const c = amiCfg();
-    const r = await api.post('/api/ami/reload', c);
-    return r;
-  }
-
-  function openAmi() {
-    const c = Object.assign({ host: location.hostname, port: 5038, user: 'admin', secret: '' }, amiCfg());
-    const body = document.createElement('div');
-    body.innerHTML = `
-      <div class="pf"><label>Хост Asterisk</label><input id="amiHost" type="text" value="${escapeHtml(c.host)}"></div>
-      <div class="pf"><label>Порт AMI</label><input id="amiPort" type="number" value="${c.port}"></div>
-      <div class="pf"><label>Пользователь AMI</label><input id="amiUser" type="text" value="${escapeHtml(c.user)}"></div>
-      <div class="pf"><label>Секрет</label><input id="amiSecret" type="text" value="${escapeHtml(c.secret)}"></div>
-      <div class="pf-help">Задаётся в /etc/asterisk/manager.conf: [admin] secret=… read=command write=command. Секрет хранится только в вашем браузере.</div>
-      <div id="amiResult" style="margin-top:10px"></div>`;
-    const collect = () => ({
-      host: body.querySelector('#amiHost').value.trim(),
-      port: Number(body.querySelector('#amiPort').value) || 5038,
-      user: body.querySelector('#amiUser').value.trim(),
-      secret: body.querySelector('#amiSecret').value,
-    });
-    const res = body.querySelector('#amiResult');
-    const test = mkBtn('🔌 Проверить связь', '', async () => {
-      setAmiCfg(collect()); res.innerHTML = '';
-      try {
-        const r = await api.post('/api/ami/test', amiCfg());
-        res.innerHTML = `<div class="ok-note">✔ Asterisk Call Manager ${escapeHtml(r.banner || '')} — связь есть</div>`;
-        setAstStatus(true);
-      } catch (e) {
-        res.innerHTML = `<ul class="warn-list"><li>⚠ ${escapeHtml(e.message)}</li></ul>`;
-        setAstStatus(false);
-      }
-    });
-    const reload = mkBtn('♻ dialplan reload', 'primary', async () => {
-      setAmiCfg(collect());
-      try { const r = await amiReload(); res.innerHTML = `<div class="ok-note">✔ Диалплан перезагружен (${escapeHtml(r.banner || 'OK')})</div>`; }
-      catch (e) { res.innerHTML = `<ul class="warn-list"><li>⚠ ${escapeHtml(e.message)}</li></ul>`; }
-    });
-    const m = openModal({ title: 'Подключение к Asterisk (AMI)', wide: false, body, foot: [test, reload, mkBtn('Закрыть', '', () => m.close())] });
-  }
-  document.getElementById('btnAmi').addEventListener('click', openAmi);
+  /* ═════════════ Станция (AMI) ═════════════ */
+  const ST_KEY = 'guipbx.station';
+  const stCfg = () => { try { return JSON.parse(localStorage.getItem(ST_KEY)) || {}; } catch (_) { return {}; } };
+  const setStCfg = c => localStorage.setItem(ST_KEY, JSON.stringify(c));
+  let station = { connected: false };
 
   function setAstStatus(on) {
+    station.connected = !!on;
     const el = document.getElementById('asteriskStatus');
     el.classList.toggle('online', !!on);
-    el.title = on ? 'Asterisk на связи' : 'Asterisk недоступен';
+    el.title = on ? 'Станция на связи' : 'Станция не подключена';
+    const dep = document.getElementById('btnDeploy');
+    if (dep) dep.title = on
+      ? 'Записать диалплан на хост или выгрузить схему на станцию'
+      : 'Подключитесь к станции (🖧 Станция) для выгрузки';
   }
+
+  async function refreshStationStatus() {
+    try {
+      const s = await api.get('/api/station/status');
+      setAstStatus(!!s.connected);
+      return s;
+    } catch (_) { setAstStatus(false); return { connected: false }; }
+  }
+
+  function openStation() {
+    const body = document.createElement('div');
+    const m = openModal({ title: 'Подключение к станции', wide: false, body, foot: [] });
+
+    function renderConnected(s) {
+      m.foot.style.display = 'none';
+      body.innerHTML = `
+        <div class="ok-note">✔ Подключено: <b>${escapeHtml(s.host)}:${s.port}</b> · ${escapeHtml(s.user)}<br>
+        Asterisk Call Manager ${escapeHtml(s.banner || '')} · с ${escapeHtml((s.connectedAt || '').slice(0, 19).replace('T', ' '))}</div>
+        <div class="pf-help" style="margin:12px 0">Можно прочитать текущие настройки станции и отрисовать их схемами, либо выгрузить изменённые карты обратно.</div>`;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+      row.appendChild(mkBtn('⬇ Прочитать настройки со станции', 'primary', () => { m.close(); openImport(); }));
+      row.appendChild(mkBtn('⌨ Команда CLI…', '', () => { m.close(); openCli(); }));
+      row.appendChild(mkBtn('⏏ Отключиться', 'danger', async () => {
+        await api.post('/api/station/disconnect');
+        setAstStatus(false);
+        toast('Отключено от станции');
+        m.close();
+      }));
+      body.appendChild(row);
+    }
+
+    function renderForm() {
+      m.foot.style.display = '';
+      const c = Object.assign({ host: '192.168.0.10', port: 5038, user: 'admin', secret: '' }, stCfg());
+      body.innerHTML = `
+        <div class="pf"><label>IP станции (Asterisk)</label><input id="stHost" type="text" value="${escapeHtml(c.host)}" placeholder="192.168.0.10"></div>
+        <div class="pf"><label>Порт AMI</label><input id="stPort" type="number" value="${c.port}"></div>
+        <div class="pf"><label>Логин администратора (AMI)</label><input id="stUser" type="text" value="${escapeHtml(c.user)}"></div>
+        <div class="pf"><label>Пароль</label><input id="stSecret" type="password" value="${escapeHtml(c.secret)}"></div>
+        <div class="pf-help">Учётка задаётся на станции в /etc/asterisk/manager.conf:<br>
+        <code style="color:#9fd4ff">[admin] secret=… permit=0.0.0.0/0.0.0.0 read=command write=command</code><br>
+        Логин/пароль хранятся только в этом браузере.</div>
+        <div id="stResult" style="margin-top:10px"></div>`;
+      m.foot.innerHTML = '';
+      const connect = mkBtn('🔌 Подключиться', 'primary', async () => {
+        const cfg = {
+          host: body.querySelector('#stHost').value.trim(),
+          port: Number(body.querySelector('#stPort').value) || 5038,
+          user: body.querySelector('#stUser').value.trim(),
+          secret: body.querySelector('#stSecret').value,
+        };
+        const res = body.querySelector('#stResult');
+        res.innerHTML = '';
+        connect.disabled = true;
+        connect.textContent = '… подключаюсь';
+        try {
+          const r = await api.post('/api/station/connect', cfg);
+          setStCfg(cfg);
+          station.connected = true;
+          setAstStatus(true);
+          toast('Станция подключена: ' + (r.banner || 'OK'), 'ok');
+          renderConnected(await refreshStationStatus());
+        } catch (e) {
+          res.innerHTML = `<ul class="warn-list"><li>⚠ ${escapeHtml(e.message)}</li></ul>`;
+          setAstStatus(false);
+        } finally {
+          connect.disabled = false;
+          connect.textContent = '🔌 Подключиться';
+        }
+      });
+      m.foot.appendChild(connect);
+      m.foot.appendChild(mkBtn('Закрыть', '', () => m.close()));
+    }
+
+    if (station.connected) {
+      refreshStationStatus().then(s => { if (s.connected) renderConnected(s); else renderForm(); });
+    } else {
+      renderForm();
+    }
+  }
+  document.getElementById('btnAmi').addEventListener('click', openStation);
+
+  /* ── произвольная CLI-команда ── */
+  function openCli() {
+    const body = document.createElement('div');
+    body.innerHTML = `
+      <div class="pf"><label>Команда Asterisk CLI</label>
+        <input id="cliCmd" type="text" value="dialplan reload"></div>
+      <div id="cliOut"></div>`;
+    const run = mkBtn('▶ Выполнить', 'primary', async () => {
+      const out = body.querySelector('#cliOut');
+      try {
+        const r = await api.post('/api/station/command', { command: body.querySelector('#cliCmd').value });
+        out.innerHTML = `<div class="ok-note" style="margin-top:8px">✔ ${escapeHtml((r.responses || []).join('<br>'))}</div>`;
+      } catch (e) { out.innerHTML = `<ul class="warn-list" style="margin-top:8px"><li>⚠ ${escapeHtml(e.message)}</li></ul>`; }
+    });
+    const m = openModal({ title: 'Команда CLI на станции', wide: false, body, foot: [run, mkBtn('Закрыть', '', () => m.close())] });
+  }
+
+  /* ── импорт существующих настроек со станции ── */
+  async function openImport() {
+    const body = document.createElement('div');
+    body.innerHTML = '<div class="props-empty">Читаю диалплан со станции…</div>';
+    const m = openModal({ title: 'Существующие настройки станции', wide: true, body, foot: [] });
+    let ctxs;
+    try {
+      ctxs = await api.get('/api/station/contexts');
+    } catch (e) {
+      body.innerHTML = `<ul class="warn-list"><li>⚠ ${escapeHtml(e.message)}</li></ul>`;
+      return;
+    }
+    if (!ctxs.length) { body.innerHTML = '<div class="props-empty">Диалплан пуст</div>'; return; }
+    ctxs.sort((a, b) => (b.ours - a.ours) || a.name.localeCompare(b.name));
+    body.innerHTML = `
+      <div class="pf-help" style="margin-bottom:8px">Команда <code>dialplan show</code> вернула контексты ниже.
+      Выберите, какие отрисовать схемами (каждый контекст станет отдельной картой, которую можно менять и сохранять обратно на станцию).</div>
+      <div class="pf-members" style="max-height:300px" id="ctxList">
+        ${ctxs.map((c, i) => `<label><input type="checkbox" data-i="${i}" ${c.ours ? 'checked' : ''}>
+          <b>${escapeHtml(c.name)}</b> · ${c.extens} ext. · ${c.priorities} приор.${c.ours ? ' <span style="color:#4ade80">· gui</span>' : ''}</label>`).join('')}
+      </div>
+      <div class="pf-check" style="margin-top:8px">
+        <button class="mini-btn" id="selAll">выбрать все</button>
+        <button class="mini-btn" id="selNone">снять выбор</button>
+      </div>`;
+    body.querySelector('#selAll').onclick = () => body.querySelectorAll('#ctxList input').forEach(x => { x.checked = true; });
+    body.querySelector('#selNone').onclick = () => body.querySelectorAll('#ctxList input').forEach(x => { x.checked = false; });
+
+    const doImport = mkBtn('⬇ Отрисовать выбранные', 'primary', async () => {
+      const names = [...body.querySelectorAll('#ctxList input')].filter(x => x.checked).map(x => ctxs[Number(x.dataset.i)].name);
+      if (!names.length) { toast('Ничего не выбрано', 'err'); return; }
+      doImport.disabled = true;
+      try {
+        if (state.dirty) await saveScheme();
+        const r = await api.post('/api/station/import', { contexts: names });
+        await loadSchemes(r.schemes.length ? r.schemes[0].id : undefined);
+        toast(`Импортировано контекстов: ${r.schemes.length}`, 'ok');
+        m.close();
+        openImportResult(r);
+      } catch (e) { toast('Импорт: ' + e.message, 'err'); }
+      finally { doImport.disabled = false; }
+    });
+    m.foot.appendChild(doImport);
+    m.foot.appendChild(mkBtn('Отмена', '', () => m.close()));
+    m.foot.style.display = '';
+  }
+
+  function openImportResult(r) {
+    const body = document.createElement('div');
+    body.innerHTML = `
+      <div class="ok-note">✔ Созданы схемы: ${(r.schemes || []).map(s => '«' + escapeHtml(s.name) + '»').join(', ') || '—'}.<br>
+      Схемы уже на полигоне — их можно править и выгружать обратно кнопкой «🚀 В работу → 💾 На станцию».</div>
+      ${(r.warnings && r.warnings.length) ? '<ul class="warn-list" style="margin-top:8px">' + r.warnings.slice(0, 30).map(w => `<li>⚠ ${escapeHtml(w)}</li>`).join('') + '</ul>' : ''}`;
+    const m = openModal({ title: 'Импорт завершён', wide: true, body, foot: [mkBtn('Понятно', 'primary', () => m.close())] });
+  }
+
 
   /* ═════════════ Зум и клавиатура ═════════════ */
   document.getElementById('zoomIn').onclick = () => editor.zoomAt(innerWidth / 2, innerHeight / 2, 1.2);
@@ -616,5 +767,6 @@
     await loadSchemes();
     // автосохранение каждые 20 сек при наличии изменений
     setInterval(() => { if (state.dirty && !document.querySelector('.modal-overlay')) saveScheme(); }, 20000);
+    refreshStationStatus();
   })();
 })();

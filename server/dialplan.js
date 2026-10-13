@@ -21,6 +21,7 @@ const TITLES = {
   time: 'Условие времени', condition: 'Условие', dial: 'Вызов абонента', ringgroup: 'Группа вызова',
   queue: 'Очередь', conference: 'Конференция', voicemail: 'Голосовая почта', forward: 'Переадресация',
   outtrunk: 'Внешний номер (транк)', park: 'Парковка', busy: 'Сигнал занято', hangup: 'Завершить вызов',
+  custom: 'Своя команда',
 };
 
 /** Имя именованного приоритета для блока. */
@@ -168,6 +169,11 @@ function compileScheme(scheme, registry) {
 
         case 'curl':
           push(C, `Set(CURLRES=\${CURL(${String(dd.url || 'http://').replace(/[()]/g, '')})})`);
+          cur = next(C, cur); break;
+
+        case 'custom':
+          if (!dd.app) C.warnings.push('«Своя команда»: не указано приложение Asterisk.');
+          push(C, `${SAFE(dd.app) || 'NoOp'}(${dd.args || ''})`);
           cur = next(C, cur); break;
 
         case 'ivr': {

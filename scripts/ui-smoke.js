@@ -75,6 +75,26 @@ async function main() {
 
   const tabs = [...doc.querySelectorAll('.modal .tab')].map(t => t.textContent);
   console.log('✔ вкладки модалки:', tabs.join(', '));
+  doc.querySelector('.modal .modal-close').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise(res => setTimeout(res, 50));
+
+  // модалка подключения к станции: форма IP/логин/пароль присутствует
+  doc.getElementById('btnAmi').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise(res => setTimeout(res, 300));
+  const stHost = doc.getElementById('stHost');
+  assert.ok(stHost, 'форма подключения к станции не открылась (нет поля IP)');
+  assert.ok(doc.getElementById('stUser') && doc.getElementById('stSecret'), 'нет полей логина/пароля');
+  console.log('✔ форма подключения: IP, порт, логин, пароль — на месте');
+
+  // подключение к несуществующей станции/в dev-режиме → корректная ошибка без падения UI
+  stHost.value = '127.0.0.1';
+  stHost.closest('.modal').querySelector('.tb-btn.primary')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise(res => setTimeout(res, 900));
+  const warn = doc.querySelector('#stResult .warn-list li, #stResult .ok-note');
+  assert.ok(warn, 'нет отображения результата подключения');
+  console.log('✔ обработка ошибки подключения:', warn.textContent.slice(0, 60) + '…');
+  doc.querySelectorAll('.modal .modal-close').forEach(x => x.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
 
   console.log('\n✔ UI smoke-тест пройден');
   process.exit(0);

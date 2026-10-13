@@ -169,6 +169,18 @@ app.post('/api/ami/reload', async (req, res) => {
   } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
+// станция (AMI): полноценная реализация — в Go-бинарнике; в dev-режиме — заглушки
+app.all('/api/station/:action', (req, res) => {
+  if (req.params.action === 'status') return res.json({ connected: false, dev: true });
+  res.status(501).json({ error: 'Подключение к станции доступно в Go-сборке GUIPBX (dev-режим Node)', dev: true });
+});
+app.post('/api/ami/reload', async (req, res) => {
+  try {
+    const r = await ami.reloadDialplan(req.body || {});
+    res.json({ ok: true, banner: r.banner, responses: r.responses });
+  } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+});
+
 app.get('*', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 
 app.listen(PORT, '0.0.0.0', () => {
