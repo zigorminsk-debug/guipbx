@@ -93,11 +93,15 @@ jobs:
     steps:
       # Если сайт Pages ещё не создан, создаём его с источником «GitHub Actions».
       # Так публикация начинает работать без ручного похода в настройки репозитория.
+      # Создание сайта требует прав администратора: у GITHUB_TOKEN их может не быть,
+      # поэтому неуспех — предупреждение и понятная инструкция, а не падение сборки.
       - name: Проверка и включение GitHub Pages
         id: pages
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          SITE="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+
           if gh api "repos/$GITHUB_REPOSITORY/pages" --silent; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
             echo "GitHub Pages уже включён"
@@ -106,8 +110,22 @@ jobs:
             echo "GitHub Pages включён автоматически (источник: GitHub Actions)"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Включите GitHub Pages вручную: Settings → Pages → Source: GitHub Actions"
+            echo "::warning::GitHub Pages не включён. Settings → Pages → Source: GitHub Actions, затем Run workflow."
+            {
+              echo "### GitHub Pages ещё не включён — деплой пропущен"
+              echo ""
+              echo "Автовключение недоступно: создание сайта Pages требует прав администратора репозитория,"
+              echo "а у \`GITHUB_TOKEN\` их нет. Сборка и артефакт \`flowpbx-dist\` при этом готовы."
+              echo ""
+              echo "1. **Settings → Pages → Source: GitHub Actions**"
+              echo "2. **Actions → CI → Run workflow** — деплой пройдёт без нового коммита."
+              echo ""
+              echo "Адрес демо после публикации: ${SITE}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+
+          echo "Демо: ${SITE}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Деплой
         if: steps.pages.outputs.enabled == 'true'
