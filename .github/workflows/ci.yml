@@ -1,6 +1,8 @@
 name: CI
 
 # Автосборка FlowPBX: линт разметки → сборка dist/ → смоук-тест → артефакт → GitHub Pages.
+# Проверки и артефакт создаются для любого запуска (в том числе ручного на ветке),
+# публикация на GitHub Pages — только для main.
 on:
   push:
     branches: [main]
@@ -16,6 +18,11 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Публикуем только из main: обычный push или ручной перезапуск сборки.
+  # (Значение остаётся строкой 'true'/'false' — сверяемся с ним на уровне шагов.)
+  PUBLISH: ${{ github.ref == 'refs/heads/main' }}
 
 jobs:
   build:
@@ -70,14 +77,14 @@ jobs:
           retention-days: 14
 
       - name: Артефакт для GitHub Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: env.PUBLISH == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@v5
         with:
           path: dist/
 
   deploy-pages:
     name: Публикация на GitHub Pages
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-latest
     environment:

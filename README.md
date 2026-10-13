@@ -72,10 +72,19 @@ npm run verify   # полный цикл: линт → сборка → линт
 
 | Workflow | Триггер | Шаги |
 | --- | --- | --- |
-| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | push в `main`, pull request в `main`, ручной запуск | `npm ci` → линт → сборка → линт `dist/` → смоук-тест → артефакт `flowpbx-dist` → публикация на GitHub Pages (только для `main`) |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | push в `main`, pull request в `main`, ручной запуск | `npm ci` → линт → сборка → линт `dist/` → смоук-тест → сводка в отчёт → артефакт `flowpbx-dist` → публикация на GitHub Pages |
 | [`.github/workflows/release.yml`](.github/workflows/release.yml) | push тега `v*`, ручной запуск | проверки и сборка → GitHub Release с файлами `flowpbx-<tag>.html` и `flowpbx-<tag>-dist.zip` |
 
+Сборка и тесты выполняются при любом запуске, поэтому результат видно и на ветке.
+Публикация на GitHub Pages идёт только из `main` — по push или по кнопке **Run workflow**
+(ручной перезапуск удобен, чтобы переопубликовать демо без нового коммита).
+
 Демонстрация после публикации: <https://zigorminsk-debug.github.io/guipbx/> (источник Pages — «GitHub Actions»).
+Если сайт ещё не создан, workflow пробует включить Pages сам; при нехватке прав он
+предупреждает и пропускает деплой — тогда включите Pages вручную: **Settings → Pages → Source: GitHub Actions**.
+
+Зависимости сборки (экшены и devDependencies) обновляет Dependabot по расписанию —
+конфигурация в [`.github/dependabot.yml`](.github/dependabot.yml).
 
 Новый релиз:
 
@@ -93,5 +102,6 @@ scripts/build.mjs       проверки целостности и сборка 
 scripts/smoke.test.mjs  смоук-тест интерфейса (node:test + jsdom)
 scripts/serve.mjs       локальный статический сервер
 .github/workflows/      ci.yml и release.yml
+.github/dependabot.yml  автообновление экшенов и devDependencies
 dist/                   результат сборки (в git не попадает)
 ```
