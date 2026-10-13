@@ -81,7 +81,7 @@ jobs:
 
       - name: Запуск сервера
         run: |
-          PORT=3100 nohup ./guipbx > guipbx.log 2>&1 &
+          PORT=3100 GUIPBX_NOBROWSER=1 nohup ./guipbx > guipbx.log 2>&1 &
           echo $! > guipbx.pid
           ok=0
           for i in $(seq 1 30); do

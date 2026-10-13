@@ -10,7 +10,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -18,7 +20,7 @@ import (
 //go:embed public
 var publicFS embed.FS
 
-const version = "1.1.0"
+const version = "1.1.1"
 
 func main() {
 	ensureSeedData()
@@ -399,10 +401,32 @@ func main() {
 
 	addr := "0.0.0.0:" + port
 	log.Printf("GUIPBX (Go) %s запущен: http://%s", version, addr)
+	log.Printf("Веб-интерфейс: откройте в браузере http://localhost:%s", port)
 	log.Printf("Данные: %s", dataDir)
+	if os.Getenv("GUIPBX_NOBROWSER") == "" {
+		// поднимаем браузер сами — бинарник рассчитан на «запустил и работаешь»
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			openBrowser("http://localhost:" + port)
+		}()
+	}
 	if err := http.ListenAndServe(addr, noStore(mux)); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// openBrowser открывает URL в системном браузере (best-effort, без ошибок).
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
 
 // ── helpers ─────────────────────────────────────────────────
