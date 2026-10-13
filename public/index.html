@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GUIPBX · Визуальный конструктор Asterisk</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header id="toolbar">
+    <div class="brand">
+      <span class="brand-logo">☎</span>
+      <span class="brand-name">GUIPBX</span>
+      <span class="brand-sub">конструктор Asterisk</span>
+    </div>
+
+    <div class="tb-group">
+      <label class="tb-label">Схема</label>
+      <select id="schemeSelect" title="Выбор схемы"></select>
+      <input id="schemeName" class="tb-input" maxlength="120" title="Название схемы (клик для переименования)" placeholder="Название схемы">
+      <button id="btnNewScheme" class="tb-btn" title="Создать схему">＋</button>
+      <button id="btnDelScheme" class="tb-btn danger" title="Удалить схему">🗑</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button id="btnSave" class="tb-btn primary" title="Сохранить (Ctrl+S)">💾 Сохранить</button>
+      <button id="btnCompile" class="tb-btn accent" title="Показать сгенерированный диалплан">⚙ Компилировать</button>
+      <button id="btnDownload" class="tb-btn" title="Скачать весь проект (.conf)">⬇ .conf</button>
+      <button id="btnDeploy" class="tb-btn" title="Записать диалплан на Asterisk-хост">🚀 В работу</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button id="btnRegistry" class="tb-btn" title="SIP-абоненты и транки">📱 Устройства и транки</button>
+      <button id="btnAmi" class="tb-btn" title="Подключение к Asterisk (AMI)">🔌 Asterisk</button>
+    </div>
+
+    <div class="tb-spacer"></div>
+    <span id="saveStatus" class="save-status"></span>
+    <span id="asteriskStatus" class="ast-status" title="Статус подключения к Asterisk">●</span>
+  </header>
+
+  <div id="main">
+    <aside id="palette">
+      <div class="palette-head">
+        <input id="paletteSearch" placeholder="Поиск блока…" autocomplete="off">
+      </div>
+      <div id="paletteList"></div>
+      <div class="palette-hint">Перетащите блок на полигон →</div>
+    </aside>
+
+    <section id="canvasWrap">
+      <div id="canvas">
+        <div id="layer">
+          <svg id="edges" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div id="nodes"></div>
+        </div>
+      </div>
+      <div id="zoomCtrl">
+        <button id="zoomOut" title="Уменьшить">−</button>
+        <span id="zoomLevel">100%</span>
+        <button id="zoomIn" title="Увеличить">＋</button>
+        <button id="zoomHome" title="Сбросить вид">⌂</button>
+      </div>
+      <div id="canvasHint">
+        ЛКМ — перетащить блок/полигон • Колесо — масштаб • Тяга из точки ● — соединить • Del — удалить • Ctrl+Z — отмена
+      </div>
+    </section>
+
+    <aside id="props">
+      <div id="propsHeader">Свойства блока</div>
+      <div id="propsBody">
+        <div class="props-empty">Выберите блок на полигоне,<br>чтобы настроить его параметры</div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toasts"></div>
+
+  <script src="/js/blocks.js"></script>
+  <script src="/js/graph.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

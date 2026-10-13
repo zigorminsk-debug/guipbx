@@ -1,22 +1,10 @@
-# Зависимости
 node_modules/
-
-# Результат сборки (создаётся `npm run build`, публикуется артефактом CI)
-dist/
-
-# Временные каталоги релизной упаковки (создаёт workflow release.yml)
-release/
-release-notes.md
-
-# Локальные артефакты тестов и отладки
-*.log
 npm-debug.log*
-test-results/
-coverage/
-
-# ОС и редакторы
 .DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.swp
+
+# runtime data (схемы и реестр создаются при первом запуске)
+data/
+
+# editor backups
+*.bak
+*.log
