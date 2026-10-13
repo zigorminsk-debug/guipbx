@@ -56,8 +56,6 @@ func TestContextsToCLI(t *testing.T) {
 func TestContextsToCLIIncludes(t *testing.T) {
 	reg := demoRegistry()
 	p := compileProject([]*Scheme{demoSchemeOutbound()}, reg)
-	_, err := compileScheme(demoSchemeOutbound(), reg)
-	_ = err
 	commands, contexts, err := contextsToCLI(p.Extensions)
 	if err != nil {
 		t.Fatalf("contextsToCLI(project): %v", err)
