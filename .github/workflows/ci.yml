@@ -1,6 +1,8 @@
 name: CI
 
 # Автосборка FlowPBX: линт разметки → сборка dist/ → смоук-тест → артефакт → GitHub Pages.
+# Проверки и артефакт создаются для любого запуска (в том числе ручного на ветке),
+# публикация на GitHub Pages — только для main.
 on:
   push:
     branches: [main]
@@ -16,6 +18,11 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Публикуем только из main: обычный push или ручной перезапуск сборки.
+  # (Значение остаётся строкой 'true'/'false' — сверяемся с ним на уровне шагов.)
+  PUBLISH: ${{ github.ref == 'refs/heads/main' }}
 
 jobs:
   build:
@@ -70,14 +77,14 @@ jobs:
           retention-days: 14
 
       - name: Артефакт для GitHub Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: env.PUBLISH == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@v5
         with:
           path: dist/
 
   deploy-pages:
     name: Публикация на GitHub Pages
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-latest
     environment:
@@ -86,11 +93,15 @@ jobs:
     steps:
       # Если сайт Pages ещё не создан, создаём его с источником «GitHub Actions».
       # Так публикация начинает работать без ручного похода в настройки репозитория.
+      # Создание сайта требует прав администратора: у GITHUB_TOKEN их может не быть,
+      # поэтому неуспех — предупреждение и понятная инструкция, а не падение сборки.
       - name: Проверка и включение GitHub Pages
         id: pages
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          SITE="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+
           if gh api "repos/$GITHUB_REPOSITORY/pages" --silent; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
             echo "GitHub Pages уже включён"
@@ -99,8 +110,22 @@ jobs:
             echo "GitHub Pages включён автоматически (источник: GitHub Actions)"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Включите GitHub Pages вручную: Settings → Pages → Source: GitHub Actions"
+            echo "::warning::GitHub Pages не включён. Settings → Pages → Source: GitHub Actions, затем Run workflow."
+            {
+              echo "### GitHub Pages ещё не включён — деплой пропущен"
+              echo ""
+              echo "Автовключение недоступно: создание сайта Pages требует прав администратора репозитория,"
+              echo "а у \`GITHUB_TOKEN\` их нет. Сборка и артефакт \`flowpbx-dist\` при этом готовы."
+              echo ""
+              echo "1. **Settings → Pages → Source: GitHub Actions**"
+              echo "2. **Actions → CI → Run workflow** — деплой пройдёт без нового коммита."
+              echo ""
+              echo "Адрес демо после публикации: ${SITE}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+
+          echo "Демо: ${SITE}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Деплой
         if: steps.pages.outputs.enabled == 'true'
