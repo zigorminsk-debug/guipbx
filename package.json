@@ -1,0 +1,24 @@
+{
+  "name": "guipbx",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FlowPBX — визуальный конструктор маршрутов Asterisk (single-file UI-прототип)",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "lint": "html-validate index.html",
+    "lint:dist": "html-validate dist/index.html",
+    "build": "node scripts/build.mjs",
+    "test": "node --test scripts/smoke.test.mjs",
+    "test:src": "SMOKE_TARGET=index.html node --test scripts/smoke.test.mjs",
+    "verify": "npm run lint && npm run build && npm run lint:dist && npm test",
+    "serve": "node scripts/serve.mjs",
+    "clean": "node -e \"import('node:fs').then((fs)=>fs.rmSync('dist',{recursive:true,force:true}))\""
+  },
+  "devDependencies": {
+    "html-validate": "^11.16.2",
+    "jsdom": "^30.1.2"
+  }
+}
